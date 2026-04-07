@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Conversation Viewer</title>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0d0f12;
+    --surface: #161920;
+    --surface2: #1e2229;
+    --border: #2a2f38;
+    --border2: #363c47;
+    --text: #e8eaf0;
+    --text2: #8b919e;
+    --text3: #555c6a;
+    --accent: #4f8ef7;
+    --accent-dim: rgba(79,142,247,0.12);
+    --accent-glow: rgba(79,142,247,0.25);
+    --green: #3ecf8e;
+    --green-dim: rgba(62,207,142,0.1);
+    --amber: #f5a623;
+    --amber-dim: rgba(245,166,35,0.1);
+    --red: #f06b6b;
+    --red-dim: rgba(240,107,107,0.1);
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+    --radius: 10px;
+    --radius-lg: 16px;
+  }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ---------- HEADER ---------- */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 18px 32px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+  }
+  .logo-dot {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 12px var(--accent-glow);
+    flex-shrink: 0;
+  }
+  header h1 {
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: 0.02em;
+    color: var(--text);
+  }
+  header span {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text3);
+    margin-left: auto;
+  }
+
+  /* ---------- MAIN LAYOUT ---------- */
+  main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px 60px;
+  }
+
+  /* ---------- FETCH FORM ---------- */
+  .fetch-card {
+    width: 100%;
+    max-width: 680px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 28px 32px;
+    margin-bottom: 32px;
+  }
+  .fetch-card h2 {
+    font-size: 13px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text3);
+    margin-bottom: 20px;
+  }
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  .field label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text2);
+    letter-spacing: 0.03em;
+  }
+  .field input {
+    font-family: var(--mono);
+    font-size: 13px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    padding: 10px 14px;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    width: 100%;
+  }
+  .field input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+  }
+  .field input::placeholder { color: var(--text3); }
+
+  .btn-fetch {
+    font-family: var(--sans);
+    font-size: 14px;
+    font-weight: 500;
+    width: 100%;
+    padding: 11px 24px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    letter-spacing: 0.01em;
+  }
+  .btn-fetch:hover { opacity: 0.88; }
+  .btn-fetch:active { transform: scale(0.99); }
+  .btn-fetch:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* ---------- STATUS BAR ---------- */
+  .status-bar {
+    width: 100%;
+    max-width: 680px;
+    display: none;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    font-size: 13px;
+    margin-bottom: 24px;
+  }
+  .status-bar.error {
+    display: flex;
+    background: var(--red-dim);
+    border: 1px solid rgba(240,107,107,0.25);
+    color: var(--red);
+  }
+  .status-bar.loading {
+    display: flex;
+    background: var(--accent-dim);
+    border: 1px solid var(--accent-glow);
+    color: var(--accent);
+  }
+
+  .spinner {
+    width: 14px; height: 14px;
+    border: 2px solid currentColor;
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    flex-shrink: 0;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---------- CONVERSATION PANEL ---------- */
+  #conv-panel {
+    display: none;
+    width: 100%;
+    max-width: 680px;
+    flex-direction: column;
+    gap: 20px;
+    animation: fadeUp 0.3s ease;
+  }
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(12px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Meta strip */
+  .meta-strip {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+  .chip {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 4px 10px;
+    border-radius: 6px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text2);
+  }
+  .chip.green { background: var(--green-dim); border-color: rgba(62,207,142,0.2); color: var(--green); }
+  .chip.amber { background: var(--amber-dim); border-color: rgba(245,166,35,0.2); color: var(--amber); }
+
+  /* Stats row */
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+  }
+  .stat-card .val {
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1;
+  }
+  .stat-card .lbl {
+    font-size: 11px;
+    color: var(--text3);
+    margin-top: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+
+  /* Chat thread */
+  .thread-header {
+    font-size: 12px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text3);
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+  .thread {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  /* Bubbles */
+  .msg-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .msg-wrap.user  { align-items: flex-end; }
+  .msg-wrap.agent { align-items: flex-start; }
+  .msg-wrap.event { align-items: center; }
+
+  .bubble {
+    max-width: 76%;
+    padding: 10px 14px;
+    border-radius: 14px;
+    font-size: 14px;
+    line-height: 1.6;
+    word-break: break-word;
+  }
+  .bubble.user {
+    background: var(--accent);
+    color: #fff;
+    border-bottom-right-radius: 4px;
+  }
+  .bubble.agent {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-bottom-left-radius: 4px;
+  }
+  .bubble a {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom: 1px solid var(--accent-glow);
+  }
+  .bubble a:hover { border-color: var(--accent); }
+  .bubble strong { font-weight: 600; }
+
+  .event-pill {
+    font-family: var(--mono);
+    font-size: 11px;
+    padding: 3px 12px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 99px;
+    color: var(--text3);
+  }
+
+  .msg-time {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    padding: 0 4px;
+  }
+
+  /* Date divider */
+  .date-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 8px 0 4px;
+  }
+  .date-divider::before, .date-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+  .date-divider span {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--text3);
+    white-space: nowrap;
+  }
+
+  /* Responsive */
+  @media (max-width: 500px) {
+    .stats-row { grid-template-columns: repeat(2, 1fr); }
+    .fetch-card { padding: 20px; }
+    header { padding: 14px 20px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-dot"></div>
+  <h1>Conversation Viewer</h1>
+  <span>helio · support chat</span>
+</header>
+
+<main>
+
+  <!-- FETCH FORM — only conversation ID visible -->
+  <div class="fetch-card">
+    <h2>Fetch Conversation</h2>
+    <div class="field">
+      <label>Conversation ID</label>
+      <input type="text" id="conv-id" placeholder="e.g. 69c499f716599deb6989a804" autofocus>
+    </div>
+    <button class="btn-fetch" id="fetch-btn" onclick="fetchConversation()">Fetch Conversation</button>
+  </div>
+
+  <!-- STATUS -->
+  <div class="status-bar" id="status-bar">
+    <div class="spinner" id="spinner"></div>
+    <span id="status-text"></span>
+  </div>
+
+  <!-- CONVERSATION PANEL -->
+  <div id="conv-panel">
+    <div class="meta-strip" id="meta-strip"></div>
+    <div class="stats-row" id="stats-row"></div>
+    <div class="thread-header">Message thread</div>
+    <div class="thread" id="thread"></div>
+  </div>
+
+</main>
+
+<script>
+  // ── hardcoded config — not visible to the user ──────────────────────────
+  const API_BASE = "https://nakama-system.run.place/conversations";
+  const DATABASE = "helio_intern";
+
+  function setStatus(type, msg) {
+    const bar = document.getElementById('status-bar');
+    const txt = document.getElementById('status-text');
+    const sp  = document.getElementById('spinner');
+    bar.className = 'status-bar ' + type;
+    txt.textContent = msg;
+    sp.style.display = type === 'loading' ? 'block' : 'none';
+    bar.style.display = msg ? 'flex' : 'none';
+  }
+
+  function fmt(ts) {
+    return new Date(ts).toLocaleString(undefined, {
+      month: 'short', day: 'numeric', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+  }
+  function fmtDate(ts) {
+    return new Date(ts).toLocaleDateString(undefined, {
+      weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
+    });
+  }
+  function fmtTime(ts) {
+    return new Date(ts).toLocaleTimeString(undefined, {
+      hour: '2-digit', minute: '2-digit'
+    });
+  }
+  function sameDay(a, b) {
+    const da = new Date(a), db = new Date(b);
+    return da.getFullYear() === db.getFullYear()
+        && da.getMonth()    === db.getMonth()
+        && da.getDate()     === db.getDate();
+  }
+
+  function mdToHtml(text) {
+    // strip the "End of stream {...}" JSON blob from agent messages
+    text = text.replace(/\nEnd of stream\n\{[\s\S]*$/m, '').trim();
+    return text
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^\)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1 ↗</a>')
+      .replace(/\* /g, '&bull; ')
+      .replace(/\n/g, '<br>');
+  }
+
+  function renderMessages(messages) {
+    const thread = document.getElementById('thread');
+    thread.innerHTML = '';
+    let lastTs = null;
+
+    messages.forEach(msg => {
+      if (!lastTs || !sameDay(lastTs, msg.timestamp)) {
+        const div = document.createElement('div');
+        div.className = 'date-divider';
+        div.innerHTML = `<span>${fmtDate(msg.timestamp)}</span>`;
+        thread.appendChild(div);
+      }
+      lastTs = msg.timestamp;
+
+      const isEvent = msg.messageType === 'event';
+      const wrap = document.createElement('div');
+
+      if (isEvent) {
+        wrap.className = 'msg-wrap event';
+        wrap.innerHTML = `<span class="event-pill">${msg.text} &middot; ${fmtTime(msg.timestamp)}</span>`;
+      } else {
+        const sender = msg.sender;
+        wrap.className = `msg-wrap ${sender}`;
+
+        const bubble = document.createElement('div');
+        bubble.className = `bubble ${sender}`;
+        bubble.innerHTML = mdToHtml(msg.text);
+
+        const time = document.createElement('span');
+        time.className = 'msg-time';
+        time.textContent = `${sender === 'agent' ? 'Agent' : 'User'} · ${fmtTime(msg.timestamp)}`;
+
+        wrap.appendChild(bubble);
+        wrap.appendChild(time);
+      }
+
+      thread.appendChild(wrap);
+    });
+  }
+
+  async function fetchConversation() {
+    const convId = document.getElementById('conv-id').value.trim();
+
+    if (!convId) {
+      setStatus('error', 'Please enter a Conversation ID.');
+      return;
+    }
+
+    const url = `${API_BASE}?database=${encodeURIComponent(DATABASE)}&conversation_id=${encodeURIComponent(convId)}`;
+
+    document.getElementById('fetch-btn').disabled = true;
+    document.getElementById('conv-panel').style.display = 'none';
+    setStatus('loading', 'Fetching conversation…');
+
+    try {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error(`HTTP ${res.status} — ${res.statusText}`);
+      const data = await res.json();
+
+      if (data.status !== 'success') {
+        throw new Error(data.message || 'Unknown error from server.');
+      }
+
+      setStatus('', '');
+      renderData(data);
+
+    } catch (err) {
+      setStatus('error', `Failed: ${err.message}`);
+    } finally {
+      document.getElementById('fetch-btn').disabled = false;
+    }
+  }
+
+  function renderData(data) {
+    const conv = data.conversation;
+    const msgs = conv.messages;
+
+    document.getElementById('meta-strip').innerHTML = `
+      <span class="chip green">&#x2022; live</span>
+      <span class="chip">ID: ${conv._id}</span>
+      <span class="chip">Widget: ${conv.widgetId}</span>
+      <span class="chip amber">Created ${fmt(conv.createdAt)}</span>
+      <span class="chip">Updated ${fmt(conv.updatedAt)}</span>
+    `;
+
+    const userMsgs  = msgs.filter(m => m.sender === 'user' && m.messageType === 'text').length;
+    const agentMsgs = msgs.filter(m => m.sender === 'agent').length;
+    const events    = msgs.filter(m => m.messageType === 'event').length;
+
+    document.getElementById('stats-row').innerHTML = `
+      <div class="stat-card"><div class="val">${data.message_count}</div><div class="lbl">Total messages</div></div>
+      <div class="stat-card"><div class="val">${userMsgs}</div><div class="lbl">User messages</div></div>
+      <div class="stat-card"><div class="val">${agentMsgs + events}</div><div class="lbl">Agent + events</div></div>
+    `;
+
+    renderMessages(msgs);
+
+    const panel = document.getElementById('conv-panel');
+    panel.style.display = 'flex';
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') fetchConversation();
+  });
+</script>
+</body>
+</html>
